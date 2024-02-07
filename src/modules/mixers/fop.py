@@ -25,6 +25,15 @@ class FOPMixer(nn.Module):
             self.agents_extractors.append(nn.Linear(self.state_dim, self.n_agents))  
             self.action_extractors.append(nn.Linear(self.state_action_dim, self.n_agents)) 
 
+        self.key_extractors2 = nn.ModuleList()
+        self.agents_extractors2 = nn.ModuleList()
+        self.action_extractors2 = nn.ModuleList()
+
+        for i in range(self.n_head):  # multi-head attention
+            self.key_extractors2.append(nn.Linear(self.state_dim, 1)) 
+            self.agents_extractors2.append(nn.Linear(self.state_dim, self.n_agents))  
+            self.action_extractors2.append(nn.Linear(self.state_action_dim, self.n_agents)) 
+        
         self.V = nn.Sequential(nn.Linear(self.state_dim, self.embed_dim),
                                nn.ReLU(),
                                nn.Linear(self.embed_dim, 1))
@@ -39,7 +48,8 @@ class FOPMixer(nn.Module):
 
         adv_q = (agent_qs - vs).detach()
         lambda_weight = self.lambda_weight(states, actions)-1
-
+        lambda_weight2 = self.lambda_weight2(states, actions)-1
+        
         adv_tot = th.sum(adv_q * lambda_weight, dim=1).reshape(bs, -1, 1)
         v_tot = th.sum(agent_qs + v, dim=-1).reshape(bs, -1, 1)
 
@@ -68,3 +78,25 @@ class FOPMixer(nn.Module):
 
         return lambdas.reshape(-1, self.n_agents)
         
+    def lambda_weight2(self, states, actions): 
+        states = states.reshape(-1, self.state_dim)
+        actions = actions.reshape(-1, self.action_dim)
+        state_actions = th.cat([states, actions], dim=1)
+
+        head_keys = [k_ext(states) for k_ext in self.key_extractors2]
+        head_agents = [k_ext(states) for k_ext in self.agents_extractors2]
+        head_actions = [sel_ext(state_actions) for sel_ext in self.action_extractors2]
+
+        lambda_weights = []
+        
+        for head_key, head_agents, head_action in zip(head_keys, head_agents, head_actions):
+            key = th.abs(head_key).repeat(1, self.n_agents) + 1e-10
+            agents = F.sigmoid(head_agents)
+            action = F.sigmoid(head_action)
+            weights = key * agents * action
+            lambda_weights.append(weights)
+            
+        lambdas = th.stack(lambda_weights, dim=1)
+        lambdas = lambdas.reshape(-1, self.n_head, self.n_agents).sum(dim=1)
+
+        return lambdas.reshape(-1, self.n_agents)
