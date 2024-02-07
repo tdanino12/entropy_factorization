@@ -6,6 +6,8 @@ epsilon_anneal_time: 50000
 mask_before_softmax: False
 
 runner: "episode"
+wandb_project: "diversity5"
+wandb_group: "MMM2_qplex_mix_multi_with_1samples_mean_only_positive!_more_weights!"
 
 # update the target network every {} training steps
 target_update_interval: 200
