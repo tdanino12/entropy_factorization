@@ -156,10 +156,10 @@ class FOP_Learner:
         next_chosen_qvals1 = th.gather(target_q_vals1, dim=3, index=next_actions).squeeze(3)
         next_chosen_qvals2 = th.gather(target_q_vals2, dim=3, index=next_actions).squeeze(3)
 
-        target_qvals1 = self.target_mixer1(next_chosen_qvals1, states, actions=next_actions_onehot, vs=next_vs1)
-        target_qvals2 = self.target_mixer2(next_chosen_qvals2, states, actions=next_actions_onehot, vs=next_vs2)
+        target_qvals1, entropy_weights_target = self.target_mixer1(next_chosen_qvals1, states, actions=next_actions_onehot, vs=next_vs1)
+        target_qvals2, entropy_weights_target2 = self.target_mixer2(next_chosen_qvals2, states, actions=next_actions_onehot, vs=next_vs2)
 
-        target_qvals = th.min(target_qvals1, target_qvals2)
+        target_qvals, min_indices = th.min(target_qvals1, target_qvals2)
 
         # Calculate td-lambda targets
         target_v = build_td_lambda_targets(rewards, terminated, mask, target_qvals, self.n_agents, self.args.gamma, self.args.td_lambda)
@@ -176,8 +176,8 @@ class FOP_Learner:
         q_taken1 = th.gather(q_vals1[:,:-1], dim=3, index=actions).squeeze(3)
         q_taken2 = th.gather(q_vals2[:,:-1], dim=3, index=actions).squeeze(3)
 
-        q_taken1 = mixer1(q_taken1, states[:, :-1], actions=actions_onehot, vs=vs1[:, :-1])
-        q_taken2 = mixer2(q_taken2, states[:, :-1], actions=actions_onehot, vs=vs2[:, :-1])
+        q_taken1, entropy_weights = mixer1(q_taken1, states[:, :-1], actions=actions_onehot, vs=vs1[:, :-1])
+        q_taken2, entropy_weights2 = mixer2(q_taken2, states[:, :-1], actions=actions_onehot, vs=vs2[:, :-1])
 
         td_error1 = q_taken1 - targets.detach()
         td_error2 = q_taken2 - targets.detach()
